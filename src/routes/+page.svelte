@@ -1,180 +1,191 @@
 <script>
+  import {onMount} from 'svelte'
 	import Fireworks from '~icons/noto-v1/fireworks'
 	import Cry from '~icons/tabler/mood-cry'
 	const icons = [
-		'https://api.iconify.design/fluent-emoji-flat:fish.svg?color=%23888888',
-		'https://api.iconify.design/emojione-v1:octopus.svg?color=%23888888',
-		'https://api.iconify.design/emojione:crab.svg?color=%23888888',
-		'https://api.iconify.design/noto:shrimp.svg?color=%23888888',
+      'https://api.iconify.design/fluent-emoji-flat:fish.svg?color=%23888888',
+      'https://api.iconify.design/emojione-v1:octopus.svg?color=%23888888',
+      'https://api.iconify.design/emojione:crab.svg?color=%23888888',
+      'https://api.iconify.design/noto:shrimp.svg?color=%23888888',
 	]
-//Shuffle icons
-const shuffle = (icons) => {
-		const clonedArray = [...icons]
-		for (let index = clonedArray.length - 1; index > 0; index--) {
-			const randomIndex = Math.floor(Math.random() * (index + 1))
-			const original = clonedArray[index]
-			clonedArray[index] = clonedArray[randomIndex]
-			clonedArray[randomIndex] = original
-		}
-		return clonedArray
-}
-const items = shuffle([...icons, ...icons, ...icons, ...icons])	
-//Initial values
-let showResult = false,
-	nextStep = false,
-	openSelection = false,
-	winDialog = false,
-	loseDialog = false
-//Switch button next to submit
-function toggle() {
-	nextStep = true
-}
-//Format time
-const formatter = new Intl.DateTimeFormat('en', {
-		minute: '2-digit',
-		second: '2-digit',
-	})
-//Game state
-const state ={
-	gameStart: false,
-	time: 0,
-	loop: 0,
-}
-//Start game
-var imgList
-const start = () => {
-	state.gameStart = true
-	state.loop = setInterval(() => {
-		state.time++
-	})
-	imgList = document.querySelectorAll('.img')
-	var numbers = [];
-			for (let i = 0; i < 4; i++) {
-			var random =  Math.floor(Math.random() * 16)
-			var check = numbers.includes(random)
-			if(check === false) {
-				numbers.push(random);
-				imgList[random].classList.add('hide')
-			} else {
-			while(check === true){
-				random = Math.floor(Math.random() * 16)
-				check = numbers.includes(random)
-				if(check === false){
-					numbers.push(random)
-					imgList[random].classList.add('hide')
-				}
-				}
-			}
-			}
-}
-//Restart
-const restart = () =>{
-	state.gameStart = false
-	state.time = 0
-	clearInterval(state.loop)
-	state.loop = 0
-	nextStep = false
-	showResult = false
-	imgList = document.querySelectorAll('.img')
-	imgList.forEach((imgEl) => {
-		imgEl.classList.remove('hide')
-		imgEl.parentElement.classList.remove('selected')
-	})
-}
-//Submit
-const submit = () => {
-	showResult = true
-	clearInterval(state.loop)
-	state.loop = 0
-}
-//Open selection
-let currentScr =['']
-function handleSelect (event) {	
-	if(event.target.classList.contains('hide')){
-		openSelection = true
-		event.target.parentElement.classList.add('selected')
-		currentScr = event.target.getAttribute('src')
-	}
-	else{
-		console.log('error')
-	}
-}
-let resultContainer = ['']
-function checkMatch (event) {
-		if(event.target.getAttribute('src') !== currentScr ){
-				resultContainer.push('false')
-			}
-		else{
-				resultContainer.push('true')		
-			} 				
-}
-function showResults (){
-	if(resultContainer.includes('false') || resultContainer.length < 4){
-		loseDialog = true,
-		winDialog = false
-	}
-	else {
-		winDialog = true,
-		loseDialog = false
-	}
-}
+  
+  const PIECE_TO_COVER = 3
+
+  const GAME_LOAD = 0
+  const GAME_START = 1
+  const GAME_GUESS_BOARD = 2
+  const GAME_WIN = 3
+  const GAME_LOSE = 4
+
+  let board = []
+  let gamePhase = GAME_LOAD
+  let gameStartedAt = new Date()
+  let gameTime = ""
+  let gameTimer = 0
+  let isAnsweringFor = -1
+
+  let answerDialog;
+  let resultDialog;
+
+  function newBoard() {
+    board = Array
+      .from(Array(16).keys())
+      .map(x => Math.random())
+      .map(x => Math.floor(x * icons.length))
+      .map(x => ({
+          id: x,
+          icon: icons[x],
+          guessed: x,
+          hidden: false,
+      }));
+  }
+
+  function coverBoard() {
+    const toCover = Array
+      .from(Array(16).keys())
+      .sort(() => 0.5 - Math.random())
+      .slice(0,PIECE_TO_COVER)
+    for(const i of toCover) {
+      board[i].hidden = true
+      board[i].guessed = -1
+    }
+  }
+
+  function openMultiChoice(i) {
+    isAnsweringFor = i
+    answerDialog.showModal()
+  }
+
+  function answer(x) {
+    board[isAnsweringFor].guessed = x
+    isAnsweringFor = -1
+    answerDialog.close()
+  }
+
+  function checkAnswerCorrect() {
+    for(const cell of board) {
+      if(!cell.hidden) continue
+      if(cell.guessed != cell.id) return false
+    }
+    return true
+  }
+
+  function restart() {
+    newBoard()
+    resultDialog.close()
+    clearInterval(gameTimer)
+    gamePhase = GAME_START
+  }
+
+  function updateGameTimer() {
+    const formatter = new Intl.DateTimeFormat('en', {
+      minute: '2-digit',
+      second: '2-digit',
+    })
+    gameTime = formatter.format(new Date() - gameStartedAt)
+  }
+
+  function nextPhase() {
+    switch(gamePhase) {
+      case GAME_START:
+        coverBoard()
+        gamePhase = GAME_GUESS_BOARD
+        gameStartedAt = new Date()
+        gameTimer = setInterval(updateGameTimer)
+        break;
+      case GAME_GUESS_BOARD:
+        if(checkAnswerCorrect()) {
+          gamePhase = GAME_WIN
+        } else {
+          gamePhase = GAME_LOSE
+        }
+        resultDialog.showModal()
+        clearInterval(gameTimer)
+        break;
+      case GAME_WIN:
+      case GAME_LOSE:
+        newBoard()
+        resultDialog.close()
+        gamePhase = GAME_START
+        break;
+    }
+  }
+  onMount(() => {
+    newBoard()
+    gamePhase = GAME_START
+  })
 </script>
-	<svelte:head>
-		<title>Memory game</title>
-		<meta name="description" content="Svelte demo app" />
-	</svelte:head>
-<header class="flex justify-between m-16 max-[767px]:m-10">
+
+<svelte:head>
+  <title>Memory game</title>
+</svelte:head>
+
+<header class="flex justify-between md:m-16 m-10">
 		<div class="font-bold text-2xl bold">Memory</div>
-		<div class="w-40 max-[767px]:w-36 h-12 bg-slate-300 p-3 font-semibold rounded-lg mr-6 max-[767px]:mr-0 flex justify-between">
+		<div class="md:w-40 w-36 h-12 bg-slate-300 p-3 font-semibold rounded-lg md:mr-6 mr-0 flex justify-between">
 			<span class="text-slate-500">Time</span>
-			<span>{formatter.format(state.time)}</span>
+			<span>{gameTime}</span>
 		</div>
 </header>
-	<main id="layout" class="w-full">
-		<div class="flex justify-center">
-			<div class="grid grid-rows-4 grid-cols-4 gap-8 max-[767px]:gap-4">
-				{#each items as item, index}
-				<button on:click={handleSelect} data-id="{index}" class="btn w-20 h-20 max-[767px]:w-16 max-[767px]:h-16 rounded-full bg-slate-200 relative">				
-					<img src="{item}" alt="icon" class="img w-10 h-10 max-[767px]:w-8 max-[767px]:h-8">
-				</button>
-				{/each}
-			</div>
-		</div>
-	</main>
-<!-- round 2-->
-<div class:selection={openSelection} class="transition ease-in-out delay-150 hidden rounded-lg bg-yellow-400 max-[767px]:w-80">
-	<h3 class="text-white text-center text-xl p-10 font-semibold max-[767px]:p-4">Please choose your selection</h3>
-	<div class="pb-8">
-		{#each icons as icon}
-		<button on:click={() => openSelection = false} on:click={checkMatch} class="w-20 h-20 max-[767px]:w-16 max-[767px]:h-16 max-[767px]:mx-2 mx-4 text-center rounded-full bg-slate-200 relative hover:transition-all hover:bg-yellow-600">
-			<img src="{icon}" alt="icon" class="text-center w-10 h-10 max-[767px]:w-8 max-[767px]:h-8">
-		</button>
-		{/each}
-	</div>
-</div>
-<footer class="flex justify-center m-16 max-[767px]:m-8">
+
+<main id="layout" class="w-full">
+  <div class="flex justify-center">
+    <div class="grid grid-rows-4 grid-cols-4 md:gap-8 gap-4">
+      {#each board as cell, index}
+        {#if cell.hidden}
+          <button on:click={() => openMultiChoice(index)} class="md:w-20 md:h-20 w-16 h-16 rounded-full bg-orange-200 grid place-items-center">
+            {#if cell.guessed != -1}
+              <img src="{icons[cell.guessed]}" alt="icon" class="aspect-square md:w-10 w-8">
+            {/if}
+          </button>
+        {:else}
+          <button disabled class="md:w-20 md:h-20 w-16 h-16 rounded-full bg-slate-200 grid place-items-center">
+              <img src="{cell.icon}" alt="icon" class="aspect-square md:w-10 w-8">
+          </button>
+        {/if}
+      {/each}
+    </div>
+  </div>
+</main>
+
+<footer class="flex justify-center md:m-16 m-8">
 	<div>
-		<button on:click={restart} class="bg-yellow-500 mr-12 max-[767px]:mr-6 w-36 max-[767px]:w-28 h-12 rounded-3xl text-white font-semibold hover:bg-amber-400">Restart</button>
-		{#if nextStep}
-		<button on:click|once={toggle} on:click={submit} on:click={showResults} class="ml-12 max-[767px]:ml-6 bg-yellow-500 w-32 max-[767px]:w-28 h-12 text-white font-semibold rounded-3xl hover:bg-amber-400">Submit</button>
-		{/if}
-		{#if !nextStep}
-		<button on:click={start} on:click|once={toggle} class="ml-12 max-[767px]:ml-6 bg-yellow-500 w-32 max-[767px]:w-28 h-12 text-white font-semibold rounded-3xl hover:bg-amber-400">Start</button>
-		{/if}
+		<button on:click={restart} class="bg-yellow-500 md:mr-12 mr-6 md:w-36 w-28 h-12 rounded-3xl text-white font-semibold hover:bg-amber-400">
+      Restart
+    </button>
+		<button on:click={nextPhase} class="md:ml-12 ml-6 bg-yellow-500 md:w-32 w-28 h-12 text-white font-semibold rounded-3xl hover:bg-amber-400">
+      {gamePhase == GAME_START?"Start":"Next"}
+    </button>
 	</div>
 </footer>
-<!--Result-->
-<div class:dialog={showResult} class="hidden rounded-lg bg-yellow-400 max-[767px]:w-80 max-[767px]:h-2/6">
-	<div class="text-center">
-		<h2 class="text-white font-bold text-4xl p-4">Your result</h2>
-		<p class:show={winDialog} class="hidden font-semibold text-2xl text-orange-800 p-4">
-			Congratulations
-			<Fireworks />
-			</p>
-		<p class:show={loseDialog} class="hidden font-semibold text-2xl text-orange-800 p-4">
-			Better luck next time
-			<Cry />
-		</p>
-		<span class="font-semibold text-xl text-white p-4">Time: {formatter.format(state.time)}</span>
-	</div>
-</div>
+
+<dialog bind:this={answerDialog} 
+  on:click|self={() => answerDialog.close()}
+  class="md:w-44 w-80 transition ease-in-out delay-150 rounded-lg bg-yellow-400">
+  <h3 class="text-white text-center text-xl md:p-10 font-semibold p-4">Please choose your selection</h3>
+  <div class="pb-8 flex gap-2">
+    {#each icons as icon, index}
+    <button on:click={() => answer(index)} class="md:w-20 aspect-square w-16 mx-2 rounded-full bg-slate-200 transition-all hover:bg-yellow-600 grid place-items-center">
+      <img src="{icon}" alt="icon" class="md:w-10 md:h-10 w-8 h-8">
+    </button>
+    {/each}
+  </div>
+</dialog>
+
+<dialog bind:this={resultDialog} 
+  on:click|self={() => resultDialog.close()}
+  class="rounded-lg bg-yellow-400 p-10">
+  <div class="text-center">
+    <h2 class="text-white font-bold text-4xl p-4">Your result</h2>
+    <p class="font-semibold text-2xl text-orange-800 p-4">
+    {#if gamePhase == GAME_WIN}
+      Congratulations
+      <Fireworks />
+    {:else}
+      Better luck next time
+      <Cry />
+    {/if}
+    </p>
+    <span class="font-semibold text-xl text-white p-4">Time: {gameTime}</span>
+  </div>
+</dialog>

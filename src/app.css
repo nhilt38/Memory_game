@@ -2,34 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-
-img, .selection, .dialog{
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-}
-.selection,
-.dialog{
+dialog{
     box-shadow: 1px 1px 5px 0px rgba(0, 0, 0,0.3);
 }
-.hide{
-    opacity: 0;
+
+dialog::backdrop {
+    background-color: rgba(0, 0, 0, 0.7);
 }
-.show{
-    display: block;
-}
-.selection, .dialog{
-    display: grid;
-    width: 28em;
-}
-.selected{
-    background: rgb(234 179 8);
-}
-.dialog {
-        height: 28em;
-        place-items: center;
-}
+
 svg{
     display: unset !important;
 }
