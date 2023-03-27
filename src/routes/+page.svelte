@@ -20,7 +20,7 @@
   let board = []
   let gamePhase = GAME_LOAD
   let gameStartedAt = new Date()
-  let gameTime = ""
+  let gameTime = "00:00"
   let gameTimer = 0
   let isAnsweringFor = -1
 
